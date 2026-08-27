@@ -18,18 +18,15 @@ no download, no config.
 curl -fsSL https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/get.sh | sh
 ```
 
-**Windows** — one command. Works pasted into either a PowerShell prompt **or**
-`cmd.exe` (no `$` variables, so nothing gets mangled by shell double-expansion):
+**Windows** — one command. Paste it **fresh** (don't reuse an older command from
+your terminal history). It has no `$` variables, so it survives being pasted into
+`cmd.exe` **or** a PowerShell prompt:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/install.ps1'))"
 ```
 
-Already at a `PS>` prompt? The bare form is enough:
-
-```powershell
-[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/install.ps1'))
-```
+<sub>If you're already at a `PS>` prompt you can drop the `powershell -NoProfile -ExecutionPolicy Bypass -Command "…"` wrapper and paste just the `[Net.ServicePointManager]…iex (…)` part.</sub>
 
 `get.sh` sniffs the OS and does the right thing:
 
@@ -38,15 +35,18 @@ Already at a `PS>` prompt? The bare form is enough:
 | Linux + systemd | a `--user` systemd service (auto-starts at login, auto-restarts) |
 | Linux without systemd / WSL | a detached `nohup` background loop |
 | macOS | a `LaunchAgent` (`com.study-reminder`, RunAtLoad + KeepAlive) |
-| Git Bash / MSYS / Cygwin | hands off to the PowerShell installer |
-| Windows PowerShell | a hidden Scheduled Task at logon (falls back to a Startup-folder entry if task registration is blocked) |
+| Git Bash / MSYS / Cygwin | hands the job to `install.ps1` |
+| Windows (`install.ps1`) | a hidden Scheduled Task at logon (falls back to a Startup-folder entry if task registration is blocked) |
 
-Either way you end up with two commands on your PATH:
+Either way you end up with two commands on your PATH (open a **new** terminal first):
 
 ```
-study-reminder once | status        # test / inspect — no `stop` here
-daddy_please_stop                    # the only way to make it stop
+study-reminder once       # fire the clip now — the quick test
+study-reminder status     # is it armed? interval / autostart / last log
+daddy_please_stop         # the only way to stop it — full teardown
 ```
+
+There is no `study-reminder stop` / `restart`; both are rejected on purpose.
 
 ## Stopping it
 
