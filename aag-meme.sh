@@ -29,10 +29,40 @@ MAX_SECS="${AAG_MAX_SECS:-5400}"
 VOLUME="${AAG_VOLUME:-1.0}"
 WARMUP="${AAG_WARMUP:-30}"
 SINK="${AAG_SINK:-@DEFAULT_AUDIO_SINK@}"
+OS="$(uname -s 2>/dev/null || echo Linux)"
 
 mkdir -p "$VAR_DIR" "$MEDIA_DIR"
 
 log() { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
+
+# crank the default output device to $VOLUME (0.0-1.0). echoes the prior level.
+crank_volume() {
+  case "$OS" in
+    Darwin)
+      local pct prev
+      prev="$(osascript -e 'output volume of (get volume settings)' 2>/dev/null || true)"
+      pct="$(awk -v v="$VOLUME" 'BEGIN{p=v*100; if(p>100)p=100; printf "%d", p}')"
+      osascript -e "set volume output volume $pct without output muted" >/dev/null 2>&1 || true
+      printf '%s\n' "${prev:-}"
+      ;;
+    *)
+      local prev
+      prev="$(wpctl get-volume "$SINK" 2>/dev/null | awk '{print $2}' || true)"
+      wpctl set-mute   "$SINK" 0         >/dev/null 2>&1 || true
+      wpctl set-volume "$SINK" "$VOLUME" >/dev/null 2>&1 || true
+      printf '%s\n' "${prev:-}"
+      ;;
+  esac
+}
+
+restore_volume() {
+  local prev="$1"
+  [ -n "$prev" ] || return 0
+  case "$OS" in
+    Darwin) osascript -e "set volume output volume $prev" >/dev/null 2>&1 || true ;;
+    *)      wpctl set-volume "$SINK" "$prev" >/dev/null 2>&1 || true ;;
+  esac
+}
 
 find_sound() {
   local f
@@ -56,24 +86,29 @@ play_once() {
     return 1
   fi
 
-  prev="$(wpctl get-volume "$SINK" 2>/dev/null | awk '{print $2}' || true)"
-  wpctl set-mute   "$SINK" 0        >/dev/null 2>&1 || true
-  wpctl set-volume "$SINK" "$VOLUME" >/dev/null 2>&1 || true
+  prev="$(crank_volume)"
   log "playing $(basename "$sound") @ vol $VOLUME"
 
   if command -v mpv >/dev/null 2>&1; then
     mpv --no-video --really-quiet --no-config --volume=100 "$sound" >/dev/null 2>&1 || true
   elif command -v ffplay >/dev/null 2>&1; then
     ffplay -nodisp -autoexit -loglevel quiet "$sound" >/dev/null 2>&1 || true
+  elif command -v afplay >/dev/null 2>&1; then          # macOS
+    afplay "$sound" >/dev/null 2>&1 || true
   elif command -v pw-play >/dev/null 2>&1; then
     pw-play "$sound" >/dev/null 2>&1 || true
+  elif command -v aplay >/dev/null 2>&1; then
+    aplay -q "$sound" >/dev/null 2>&1 || true
+  elif command -v powershell.exe >/dev/null 2>&1; then   # Git Bash / WSL on Windows
+    powershell.exe -NoProfile -c "(New-Object Media.SoundPlayer '$sound').PlaySync()" >/dev/null 2>&1 \
+      || powershell.exe -NoProfile -c "\$p=New-Object -ComObject WMPlayer.OCX; \$p.URL='$sound'; \$p.controls.play(); Start-Sleep 10" >/dev/null 2>&1 || true
   else
-    log "no audio player found (need mpv, ffplay, or pw-play)"
+    log "no audio player found (need mpv, ffplay, afplay, pw-play, or aplay)"
     return 1
   fi
 
-  if [ "${AAG_RESTORE:-0}" = "1" ] && [ -n "${prev:-}" ]; then
-    wpctl set-volume "$SINK" "$prev" >/dev/null 2>&1 || true
+  if [ "${AAG_RESTORE:-0}" = "1" ]; then
+    restore_volume "${prev:-}"
   fi
 }
 
