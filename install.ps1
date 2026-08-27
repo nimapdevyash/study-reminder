@@ -25,6 +25,41 @@ $tmpZip = Join-Path $env:TEMP ('study-reminder-{0}.zip' -f ([guid]::NewGuid().To
 $tmpDir = Join-Path $env:TEMP ('study-reminder-{0}'     -f ([guid]::NewGuid().ToString('N')))
 $url    = "https://codeload.github.com/$Repo/zip/refs/heads/$Branch"
 
+function Remove-Previous([string]$dest) {
+  # 1. let the existing install tear itself down (task, loop, shims, Startup)
+  $prev = Join-Path $dest 'windows\study-reminder.ps1'
+  if (Test-Path $prev) {
+    try { & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $prev __teardown | Out-Null } catch { }
+  }
+  # 2. belt-and-suspenders: do the teardown inline too, in case $prev was missing/broken
+  try { Stop-ScheduledTask       -TaskName 'study-reminder' -ErrorAction SilentlyContinue | Out-Null } catch { }
+  try { Unregister-ScheduledTask -TaskName 'study-reminder' -Confirm:$false -ErrorAction SilentlyContinue } catch { }
+  try {
+    $startup = Join-Path ([Environment]::GetFolderPath('Startup')) 'study-reminder.cmd'
+    Remove-Item -LiteralPath $startup -Force -ErrorAction SilentlyContinue
+  } catch { }
+  try {
+    Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -ErrorAction SilentlyContinue |
+      Where-Object { $_.CommandLine -match 'study-reminder\.ps1.*\brun\b' } |
+      ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  } catch { }
+  try {
+    $bin = Join-Path $dest 'bin'
+    $cur = [Environment]::GetEnvironmentVariable('Path', 'User')
+    if ($cur) {
+      $new = ($cur -split ';' | Where-Object { $_ -and $_ -ne $bin }) -join ';'
+      if ($new -ne $cur) { [Environment]::SetEnvironmentVariable('Path', $new, 'User') }
+    }
+  } catch { }
+  # 3. wipe the folder so the new copy is genuinely fresh (retry once if a handle lingers)
+  if (Test-Path $dest) {
+    foreach ($attempt in 1..2) {
+      try { Remove-Item -LiteralPath $dest -Recurse -Force -ErrorAction Stop; break }
+      catch { if ($attempt -eq 2) { Write-Host "    (note: could not fully remove $dest -- $($_.Exception.Message))" } else { Start-Sleep -Seconds 1 } }
+    }
+  }
+}
+
 function Expand-Zip([string]$zip, [string]$out) {
   New-Item -ItemType Directory -Force -Path $out | Out-Null
   try {
@@ -52,13 +87,10 @@ try {
     Where-Object { $_.Name -like 'study-reminder*' } | Select-Object -First 1
   if (-not $srcRoot) { throw "could not find extracted repo under $extracted" }
 
-  $prev = Join-Path $Dest 'windows\study-reminder.ps1'
-  if (Test-Path $prev) {
-    Write-Host '==> stopping previous install'
-    try { & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $prev __teardown | Out-Null } catch { }
-  }
+  Write-Host '==> removing any previous install'
+  Remove-Previous $Dest
 
-  Write-Host '==> installing'
+  Write-Host '==> installing fresh'
   New-Item -ItemType Directory -Force -Path $Dest | Out-Null
   Copy-Item -Path (Join-Path $srcRoot.FullName '*') -Destination $Dest -Recurse -Force
 

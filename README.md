@@ -28,6 +28,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager
 
 <sub>If you're already at a `PS>` prompt you can drop the `powershell -NoProfile -ExecutionPolicy Bypass -Command "…"` wrapper and paste just the `[Net.ServicePointManager]…iex (…)` part.</sub>
 
+Re-running the install command (either OS) is safe: it tears down the previous
+install — task / service / agent, background loop, PATH shims, the whole
+`study-reminder` folder — and sets up a clean one from the latest `main`.
+
 `get.sh` sniffs the OS and does the right thing:
 
 | environment | what it sets up |

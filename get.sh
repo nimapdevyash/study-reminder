@@ -68,6 +68,20 @@ fi
 chmod +x "$DEST"/*.sh 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
+# Clear any previous install so a rerun is a genuine fresh setup
+# (disables the old service/agent, kills the old loop; harmless if none)
+# ---------------------------------------------------------------------------
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl --user disable --now study-reminder >/dev/null 2>&1 || true
+  rm -f "$HOME/.config/systemd/user/study-reminder.service"
+  systemctl --user daemon-reload >/dev/null 2>&1 || true
+fi
+launchctl unload "$HOME/Library/LaunchAgents/com.study-reminder.plist" 2>/dev/null || true
+pkill -f 'study-reminder.sh run'   2>/dev/null || true
+pkill -f 'study-reminder.sh start' 2>/dev/null || true
+rm -f "$DEST/var/study-reminder.pid"
+
+# ---------------------------------------------------------------------------
 # Put `study-reminder` and `daddy_please_stop` on PATH
 # ---------------------------------------------------------------------------
 mkdir -p "$HOME/.local/bin"
