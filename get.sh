@@ -98,7 +98,7 @@ if [ "$flavor" = macos ]; then
 </dict></plist>
 PLIST
   launchctl unload "$plist" 2>/dev/null || true
-  launchctl load "$plist" 2>/dev/null && started="launchd agent com.aag-meme"
+  if launchctl load "$plist" 2>/dev/null; then started="launchd agent com.aag-meme"; fi
 fi
 
 if [ -z "$started" ] && [ "$flavor" = linux ] && [ "$is_wsl" = 0 ] \
@@ -107,7 +107,7 @@ if [ -z "$started" ] && [ "$flavor" = linux ] && [ "$is_wsl" = 0 ] \
   sed "s|^ExecStart=.*|ExecStart=$DEST/aag-meme.sh run|" \
     "$DEST/aag-meme.service" > "$HOME/.config/systemd/user/aag-meme.service"
   systemctl --user daemon-reload
-  systemctl --user enable --now aag-meme && started="systemd user service aag-meme"
+  if systemctl --user enable --now aag-meme 2>/dev/null; then started="systemd user service aag-meme"; fi
 fi
 
 if [ -z "$started" ]; then
