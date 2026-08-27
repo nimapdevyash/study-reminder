@@ -1,0 +1,17 @@
+[Unit]
+Description=study-reminder — random meme-sound gremlin
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/Codes/study-reminder/study-reminder.sh run
+Restart=always
+RestartSec=5
+# Tweak the vibe here if you want:
+# Environment=STUDY_MIN_SECS=1200
+# Environment=STUDY_MAX_SECS=5400
+# Environment=STUDY_VOLUME=1.0
+
+[Install]
+WantedBy=default.target

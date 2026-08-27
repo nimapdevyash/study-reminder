@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Grab the meme audio and park it at media/sound.<ext> so aag-meme.sh can find it.
+# Grab the meme audio and park it at media/sound.<ext> so study-reminder.sh can find it.
 # Usage: ./fetch-sound.sh <youtube-or-direct-media-url>
 set -euo pipefail
 

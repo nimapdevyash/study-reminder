@@ -1,19 +1,19 @@
 #!/bin/sh
-# aag-meme -- universal one-command bootstrap.
+# study-reminder -- universal one-command bootstrap.
 #
-#   curl -fsSL https://raw.githubusercontent.com/nimapdevyash/aag-meme/main/get.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/get.sh | sh
 #
 # Detects the OS, downloads the tool (the "ghop ghop" clip is bundled), installs
 # the right kind of background service, and starts it. The only off switch,
-# on every OS, is:   daddy-please-stop
+# on every OS, is:   daddy_please_stop
 set -eu
 
-REPO_SLUG="nimapdevyash/aag-meme"
+REPO_SLUG="nimapdevyash/study-reminder"
 BRANCH="main"
 RAW="https://raw.githubusercontent.com/$REPO_SLUG/$BRANCH"
-DEST="${AAG_HOME:-$HOME/.local/share/aag-meme}"
+DEST="${STUDY_HOME:-$HOME/.local/share/study-reminder}"
 
-say() { printf '[aag-meme] %s\n' "$*"; }
+say() { printf '[study-reminder] %s\n' "$*"; }
 
 uname_s="$(uname -s 2>/dev/null || echo unknown)"
 
@@ -27,8 +27,8 @@ case "$uname_s" in
     [ -n "$ps" ] || { say "powershell not found on PATH"; exit 1; }
     # download to a temp file and run it -- avoids all `iex`-on-string parsing quirks
     "$ps" -NoProfile -ExecutionPolicy Bypass -Command \
-      '[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $t=Join-Path $env:TEMP "aag-install.ps1"; (New-Object Net.WebClient).DownloadFile("'"$RAW"'/install.ps1",$t); & $t'
-    say "done. off switch:  daddy-please-stop"
+      '[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $t=Join-Path $env:TEMP "study-install.ps1"; (New-Object Net.WebClient).DownloadFile("'"$RAW"'/install.ps1",$t); & $t'
+    say "done. off switch:  daddy_please_stop"
     exit 0
     ;;
 esac
@@ -69,11 +69,11 @@ fi
 chmod +x "$DEST"/*.sh 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-# Put `aag-meme` and `daddy-please-stop` on PATH
+# Put `study-reminder` and `daddy_please_stop` on PATH
 # ---------------------------------------------------------------------------
 mkdir -p "$HOME/.local/bin"
-ln -sf "$DEST/aag-meme.sh"          "$HOME/.local/bin/aag-meme"
-ln -sf "$DEST/daddy-please-stop.sh" "$HOME/.local/bin/daddy-please-stop"
+ln -sf "$DEST/study-reminder.sh"          "$HOME/.local/bin/study-reminder"
+ln -sf "$DEST/daddy_please_stop.sh" "$HOME/.local/bin/daddy_please_stop"
 case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) say "note: add ~/.local/bin to PATH -> export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
@@ -85,37 +85,37 @@ esac
 started=""
 
 if [ "$flavor" = macos ]; then
-  plist="$HOME/Library/LaunchAgents/com.aag-meme.plist"
+  plist="$HOME/Library/LaunchAgents/com.study-reminder.plist"
   mkdir -p "$HOME/Library/LaunchAgents"
   cat > "$plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>com.aag-meme</string>
+  <key>Label</key><string>com.study-reminder</string>
   <key>ProgramArguments</key>
-  <array><string>/bin/sh</string><string>$DEST/aag-meme.sh</string><string>run</string></array>
+  <array><string>/bin/sh</string><string>$DEST/study-reminder.sh</string><string>run</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
 </dict></plist>
 PLIST
   launchctl unload "$plist" 2>/dev/null || true
-  if launchctl load "$plist" 2>/dev/null; then started="launchd agent com.aag-meme"; fi
+  if launchctl load "$plist" 2>/dev/null; then started="launchd agent com.study-reminder"; fi
 fi
 
 if [ -z "$started" ] && [ "$flavor" = linux ] && [ "$is_wsl" = 0 ] \
    && command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
   mkdir -p "$HOME/.config/systemd/user"
-  sed "s|^ExecStart=.*|ExecStart=$DEST/aag-meme.sh run|" \
-    "$DEST/aag-meme.service" > "$HOME/.config/systemd/user/aag-meme.service"
+  sed "s|^ExecStart=.*|ExecStart=$DEST/study-reminder.sh run|" \
+    "$DEST/study-reminder.service" > "$HOME/.config/systemd/user/study-reminder.service"
   systemctl --user daemon-reload
-  if systemctl --user enable --now aag-meme 2>/dev/null; then started="systemd user service aag-meme"; fi
+  if systemctl --user enable --now study-reminder 2>/dev/null; then started="systemd user service study-reminder"; fi
 fi
 
 if [ -z "$started" ]; then
   # WSL / systemd-less linux / launchd refused -> detached nohup loop
-  nohup "$DEST/aag-meme.sh" start >/dev/null 2>&1 &
+  nohup "$DEST/study-reminder.sh" start >/dev/null 2>&1 &
   started="detached background loop"
 fi
 
 say "started via $started"
-say "done. it fires every 20-90 min. off switch (any OS):  daddy-please-stop"
+say "done. it fires every 20-90 min. off switch (any OS):  daddy_please_stop"

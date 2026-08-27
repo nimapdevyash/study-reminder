@@ -1,21 +1,22 @@
-# aag-meme (Windows) -- a background gremlin that blasts a meme sound at a
+# study-reminder (Windows) -- a background gremlin that blasts a meme sound at a
 # random interval (default: every 20-90 minutes) at max system volume.
 #
-#   powershell -File aag-meme.ps1 start      # register task + put shims on PATH (runs at logon)
-#   powershell -File aag-meme.ps1 stop       # the ONLY off switch (also: the daddy-please-stop command)
-#   powershell -File aag-meme.ps1 status     # scheduled? running? + recent log
-#   powershell -File aag-meme.ps1 once       # fire the sound right now (test)
-#   powershell -File aag-meme.ps1 run        # internal: the foreground loop
+#   powershell -File study-reminder.ps1 start      # register task + put shims on PATH (runs at logon)
+#   powershell -File study-reminder.ps1 status     # scheduled? running? + recent log
+#   powershell -File study-reminder.ps1 once       # fire the sound right now (test)
+#   powershell -File study-reminder.ps1 run        # internal: the foreground loop
+#
+# There is no `stop` command. The only way to stop it is `daddy_please_stop`.
 #
 # After `start`, these are on your PATH (new terminal):
-#   aag-meme status | once | restart
-#   daddy-please-stop                        # stop everything, remove shims
+#   study-reminder status | once
+#   daddy_please_stop                        # the only off switch -- removes everything
 #
 # Config via env vars (all optional):
-#   AAG_MIN_SECS   min gap between hits   (default 1200 = 20 min)
-#   AAG_MAX_SECS   max gap between hits   (default 5400 = 90 min)
-#   AAG_VOLUME     master volume 0.0-1.0  (default 1.0 = 100%)
-#   AAG_WARMUP     seconds before 1st hit (default 30)
+#   STUDY_MIN_SECS   min gap between hits   (default 1200 = 20 min)
+#   STUDY_MAX_SECS   max gap between hits   (default 5400 = 90 min)
+#   STUDY_VOLUME     master volume 0.0-1.0  (default 1.0 = 100%)
+#   STUDY_WARMUP     seconds before 1st hit (default 30)
 
 [CmdletBinding()]
 param([Parameter(Position = 0)][string]$Command = 'status')
@@ -27,13 +28,13 @@ $Root     = Split-Path -Parent $Here                 # install root (holds media
 $MediaDir = Join-Path $Root 'media'
 $BinDir   = Join-Path $Root 'bin'                    # shim commands go on PATH
 $VarDir   = Join-Path $Here 'var'
-$LogFile  = Join-Path $VarDir 'aag-meme.log'
-$TaskName = 'aag-meme'
+$LogFile  = Join-Path $VarDir 'study-reminder.log'
+$TaskName = 'study-reminder'
 
-$MinSecs = if ($env:AAG_MIN_SECS) { [int]$env:AAG_MIN_SECS }    else { 1200 }
-$MaxSecs = if ($env:AAG_MAX_SECS) { [int]$env:AAG_MAX_SECS }    else { 5400 }
-$Volume  = if ($env:AAG_VOLUME)   { [double]$env:AAG_VOLUME }   else { 1.0 }
-$Warmup  = if ($env:AAG_WARMUP)   { [int]$env:AAG_WARMUP }      else { 30 }
+$MinSecs = if ($env:STUDY_MIN_SECS) { [int]$env:STUDY_MIN_SECS }    else { 1200 }
+$MaxSecs = if ($env:STUDY_MAX_SECS) { [int]$env:STUDY_MAX_SECS }    else { 5400 }
+$Volume  = if ($env:STUDY_VOLUME)   { [double]$env:STUDY_VOLUME }   else { 1.0 }
+$Warmup  = if ($env:STUDY_WARMUP)   { [int]$env:STUDY_WARMUP }      else { 30 }
 
 New-Item -ItemType Directory -Force -Path $VarDir | Out-Null
 
@@ -53,7 +54,7 @@ function Get-SoundFile {
 function Set-MaxVolume([double]$level) {
   $level = [math]::Min([math]::Max($level, 0.0), 1.0)
   try {
-    if (-not ('AagAudio' -as [type])) {
+    if (-not ('StudyAudio' -as [type])) {
       Add-Type -Language CSharp @'
 using System;
 using System.Runtime.InteropServices;
@@ -89,7 +90,7 @@ interface IMMDeviceEnumerator {
 [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
 class MMDeviceEnumeratorComObject { }
 
-public static class AagAudio {
+public static class StudyAudio {
   public static void Max(float level) {
     var e = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
     IMMDevice dev;
@@ -104,7 +105,7 @@ public static class AagAudio {
 }
 '@
     }
-    [AagAudio]::Max([float]$level)
+    [StudyAudio]::Max([float]$level)
     return $true
   }
   catch {
@@ -175,7 +176,7 @@ function Invoke-Blast {
 
 # --- the gremlin loop -------------------------------------------------------
 function Invoke-Loop {
-  Log ("aag-meme started (pid {0}) -- interval {1}-{2}s, warmup {3}s" -f $PID, $MinSecs, $MaxSecs, $Warmup)
+  Log ("study-reminder started (pid {0}) -- interval {1}-{2}s, warmup {3}s" -f $PID, $MinSecs, $MaxSecs, $Warmup)
   $wait = $Warmup
   while ($true) {
     Log "next hit in ${wait}s"
@@ -188,7 +189,7 @@ function Invoke-Loop {
 # --- scheduled-task lifecycle --------------------------------------------------
 function New-TaskAction {
   $ps  = (Get-Command powershell.exe).Source
-  $ps1 = Join-Path $Here 'aag-meme.ps1'
+  $ps1 = Join-Path $Here 'study-reminder.ps1'
   New-ScheduledTaskAction -Execute $ps `
     -Argument ('-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" run' -f $ps1)
 }
@@ -213,31 +214,31 @@ function Remove-UserPath([string]$dir) {
 
 function Install-Shims {
   New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-  $ps1 = Join-Path $Here 'aag-meme.ps1'
+  $ps1 = Join-Path $Here 'study-reminder.ps1'
   $runner = '@echo off' + "`r`n" +
   ('powershell -NoProfile -ExecutionPolicy Bypass -File "{0}" %*' -f $ps1) + "`r`n"
   $stopper = '@echo off' + "`r`n" +
-  ('powershell -NoProfile -ExecutionPolicy Bypass -File "{0}" stop' -f $ps1) + "`r`n"
-  Set-Content -LiteralPath (Join-Path $BinDir 'aag-meme.cmd')         -Value $runner  -Encoding ASCII
-  Set-Content -LiteralPath (Join-Path $BinDir 'daddy-please-stop.cmd') -Value $stopper -Encoding ASCII
+  ('powershell -NoProfile -ExecutionPolicy Bypass -File "{0}" __teardown' -f $ps1) + "`r`n"
+  Set-Content -LiteralPath (Join-Path $BinDir 'study-reminder.cmd')         -Value $runner  -Encoding ASCII
+  Set-Content -LiteralPath (Join-Path $BinDir 'daddy_please_stop.cmd') -Value $stopper -Encoding ASCII
   Add-UserPath $BinDir
 }
 
 function Remove-Shims {
-  Remove-Item -LiteralPath (Join-Path $BinDir 'aag-meme.cmd')          -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath (Join-Path $BinDir 'daddy-please-stop.cmd') -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath (Join-Path $BinDir 'study-reminder.cmd')          -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath (Join-Path $BinDir 'daddy_please_stop.cmd') -Force -ErrorAction SilentlyContinue
   Remove-UserPath $BinDir
 }
 
 function Stop-LoopProcesses {
   Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -match 'aag-meme\.ps1.*\brun\b' } |
+    Where-Object { $_.CommandLine -match 'study-reminder\.ps1.*\brun\b' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
 function Get-StartupCmd {
   $dir = [Environment]::GetFolderPath('Startup')
-  Join-Path $dir 'aag-meme.cmd'
+  Join-Path $dir 'study-reminder.cmd'
 }
 
 function Register-Autostart {
@@ -250,7 +251,7 @@ function Register-Autostart {
     $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
       -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal `
-      -Settings $settings -Description 'aag-meme -- random meme-sound gremlin' -Force -ErrorAction Stop | Out-Null
+      -Settings $settings -Description 'study-reminder -- random meme-sound gremlin' -Force -ErrorAction Stop | Out-Null
     Start-ScheduledTask -TaskName $TaskName -ErrorAction Stop
     return 'scheduled task'
   }
@@ -258,7 +259,7 @@ function Register-Autostart {
     Log "scheduled task unavailable ($($_.Exception.Message)); using Startup folder instead"
   }
   # Fallback: Startup-folder .cmd (runs at logon) + launch the loop right now.
-  $ps1 = Join-Path $Here 'aag-meme.ps1'
+  $ps1 = Join-Path $Here 'study-reminder.ps1'
   $body = '@echo off' + "`r`n" +
   ('start "" /min powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" run' -f $ps1) + "`r`n"
   Set-Content -LiteralPath (Get-StartupCmd) -Value $body -Encoding ASCII
@@ -277,7 +278,7 @@ function Invoke-Start {
   $how = Register-Autostart
   Install-Shims
   Log "started via $how (fires every logon + every ${MinSecs}-${MaxSecs}s)"
-  Log "off switch: run  daddy-please-stop"
+  Log "off switch: run  daddy_please_stop"
   Invoke-Status
 }
 
@@ -304,7 +305,7 @@ function Invoke-Status {
     Write-Host "autostart: not installed"
   }
   $running = Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -match 'aag-meme\.ps1.*\brun\b' }
+    Where-Object { $_.CommandLine -match 'study-reminder\.ps1.*\brun\b' }
   if ($running) {
     Write-Host ("loop:     running (pid {0})" -f (($running.ProcessId) -join ', '))
   }
@@ -318,12 +319,11 @@ function Invoke-Status {
 }
 
 switch ($Command.ToLower()) {
-  'start'   { Invoke-Start }
-  'stop'    { Invoke-Stop }
-  'restart' { Invoke-Stop; Start-Sleep -Seconds 1; Invoke-Start }
-  'status'  { Invoke-Status }
-  'once'    { Invoke-Blast }
-  'test'    { Invoke-Blast }
-  'run'     { Invoke-Loop }
-  default   { Write-Host 'usage: aag-meme.ps1 {start|stop|restart|status|once|run}  (or the `daddy-please-stop` command)' }
+  'start'      { Invoke-Start }
+  'status'     { Invoke-Status }
+  'once'       { Invoke-Blast }
+  'test'       { Invoke-Blast }
+  'run'        { Invoke-Loop }
+  '__teardown' { Invoke-Stop }   # internal: invoked only by the daddy_please_stop command
+  default      { Write-Host 'usage: study-reminder.ps1 {start|status|once|run}   (stop only via: daddy_please_stop)' }
 }

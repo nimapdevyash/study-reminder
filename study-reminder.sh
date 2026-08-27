@@ -1,34 +1,35 @@
 #!/usr/bin/env bash
-# aag-meme — a background gremlin that blasts a meme sound at a random
+# study-reminder — a background gremlin that blasts a meme sound at a random
 # interval (default: every 20–90 minutes) at max volume.
 #
-#   ./aag-meme.sh start        # launch in the background
-#   ./aag-meme.sh stop         # kill it
-#   ./aag-meme.sh status       # is it alive? + recent log
-#   ./aag-meme.sh once         # fire the sound right now (test)
-#   ./aag-meme.sh fetch <url>  # grab the meme audio via yt-dlp
+#   ./study-reminder.sh start        # launch in the background
+#   ./study-reminder.sh status       # is it alive? + recent log
+#   ./study-reminder.sh once         # fire the sound right now (test)
+#   ./study-reminder.sh fetch <url>  # grab the meme audio via yt-dlp
+#
+# There is no `stop`. The only way to stop it is the `daddy_please_stop` command.
 #
 # Config via env (all optional):
-#   AAG_MIN_SECS   min gap between hits   (default 1200 = 20 min)
-#   AAG_MAX_SECS   max gap between hits   (default 5400 = 90 min)
-#   AAG_VOLUME     sink volume to set     (default 1.0 = 100%; 1.5 = overdrive)
-#   AAG_WARMUP     seconds before 1st hit (default 30)
-#   AAG_RESTORE    1 = restore prior volume after each hit (default 0)
-#   AAG_SINK       wpctl sink id          (default @DEFAULT_AUDIO_SINK@)
+#   STUDY_MIN_SECS   min gap between hits   (default 1200 = 20 min)
+#   STUDY_MAX_SECS   max gap between hits   (default 5400 = 90 min)
+#   STUDY_VOLUME     sink volume to set     (default 1.0 = 100%; 1.5 = overdrive)
+#   STUDY_WARMUP     seconds before 1st hit (default 30)
+#   STUDY_RESTORE    1 = restore prior volume after each hit (default 0)
+#   STUDY_SINK       wpctl sink id          (default @DEFAULT_AUDIO_SINK@)
 
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MEDIA_DIR="$HERE/media"
 VAR_DIR="$HERE/var"
-PID_FILE="$VAR_DIR/aag-meme.pid"
-LOG_FILE="$VAR_DIR/aag-meme.log"
+PID_FILE="$VAR_DIR/study-reminder.pid"
+LOG_FILE="$VAR_DIR/study-reminder.log"
 
-MIN_SECS="${AAG_MIN_SECS:-1200}"
-MAX_SECS="${AAG_MAX_SECS:-5400}"
-VOLUME="${AAG_VOLUME:-1.0}"
-WARMUP="${AAG_WARMUP:-30}"
-SINK="${AAG_SINK:-@DEFAULT_AUDIO_SINK@}"
+MIN_SECS="${STUDY_MIN_SECS:-1200}"
+MAX_SECS="${STUDY_MAX_SECS:-5400}"
+VOLUME="${STUDY_VOLUME:-1.0}"
+WARMUP="${STUDY_WARMUP:-30}"
+SINK="${STUDY_SINK:-@DEFAULT_AUDIO_SINK@}"
 OS="$(uname -s 2>/dev/null || echo Linux)"
 
 mkdir -p "$VAR_DIR" "$MEDIA_DIR"
@@ -107,15 +108,15 @@ play_once() {
     return 1
   fi
 
-  if [ "${AAG_RESTORE:-0}" = "1" ]; then
+  if [ "${STUDY_RESTORE:-0}" = "1" ]; then
     restore_volume "${prev:-}"
   fi
 }
 
 run_loop() {
   echo $$ > "$PID_FILE"
-  trap 'log "aag-meme stopping"; rm -f "$PID_FILE"; exit 0' TERM INT EXIT
-  log "aag-meme started (pid $$) — interval ${MIN_SECS}-${MAX_SECS}s, warmup ${WARMUP}s"
+  trap 'log "study-reminder stopping"; rm -f "$PID_FILE"; exit 0' TERM INT EXIT
+  log "study-reminder started (pid $$) — interval ${MIN_SECS}-${MAX_SECS}s, warmup ${WARMUP}s"
   local wait="$WARMUP"
   while true; do
     log "next hit in ${wait}s"
@@ -134,7 +135,7 @@ is_running() {
 cmd_start() {
   if is_running; then echo "already running (pid $(cat "$PID_FILE"))"; return 0; fi
   find_sound >/dev/null 2>&1 || echo "!! no sound file yet — add $MEDIA_DIR/sound.mp3 or run: $0 fetch <url>"
-  nohup setsid bash "$HERE/aag-meme.sh" run >>"$LOG_FILE" 2>&1 &
+  nohup setsid bash "$HERE/study-reminder.sh" run >>"$LOG_FILE" 2>&1 &
   disown || true
   sleep 0.6
   if is_running; then
@@ -144,7 +145,8 @@ cmd_start() {
   fi
 }
 
-cmd_stop() {
+# internal: used only by the daddy_please_stop command
+cmd_teardown() {
   if ! is_running; then echo "not running"; rm -f "$PID_FILE"; return 0; fi
   local pid; pid="$(cat "$PID_FILE")"
   kill "$pid" 2>/dev/null || true
@@ -164,11 +166,10 @@ cmd_status() {
 
 case "${1:-}" in
   start)         cmd_start ;;
-  stop)          cmd_stop ;;
-  restart)       cmd_stop; cmd_start ;;
   status)        cmd_status ;;
-  run)           run_loop ;;                       # internal: foreground loop
   once|test)     play_once ;;
   fetch)         shift; exec bash "$HERE/fetch-sound.sh" "$@" ;;
-  *) echo "usage: $0 {start|stop|restart|status|once|fetch <url>}"; exit 1 ;;
+  run)           run_loop ;;                       # internal: foreground loop
+  __teardown)    cmd_teardown ;;                   # internal: for daddy_please_stop only
+  *) echo "usage: $0 {start|status|once|fetch <url>}   (stop only via: daddy_please_stop)"; exit 1 ;;
 esac
