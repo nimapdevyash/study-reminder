@@ -11,10 +11,11 @@ case "$OS" in
   MINGW*|MSYS*|CYGWIN*|Windows_NT)
     # Windows shell env -> let the PowerShell side do the teardown
     ps="$(command -v powershell.exe || command -v pwsh.exe || command -v powershell || true)"
-    if [ -n "$ps" ]; then
+    if [ -n "$ps" ] && [ -f "$HERE/windows/aag-meme.ps1" ]; then
+      "$ps" -NoProfile -ExecutionPolicy Bypass -File "$HERE/windows/aag-meme.ps1" stop
+    elif [ -n "$ps" ]; then
       "$ps" -NoProfile -ExecutionPolicy Bypass -Command \
-        "iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/nimapdevyash/aag-meme/main/stop.ps1'))" \
-        || "$ps" -NoProfile -ExecutionPolicy Bypass -File "$HERE/windows/aag-meme.ps1" stop
+        '[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $t=Join-Path $env:TEMP "aag-stop.ps1"; (New-Object Net.WebClient).DownloadFile("https://raw.githubusercontent.com/nimapdevyash/aag-meme/main/stop.ps1",$t); & $t'
     fi
     ;;
   Darwin)
@@ -33,7 +34,8 @@ case "$OS" in
 esac
 
 # kill any stray background loop, regardless of how it was launched
-pkill -f 'aag-meme.sh (run|start)' 2>/dev/null || true
+pkill -f 'aag-meme.sh run'   2>/dev/null || true
+pkill -f 'aag-meme.sh start' 2>/dev/null || true
 
 rm -f "$HOME/.local/bin/aag-meme" "$HOME/.local/bin/daddy-please-stop"
 

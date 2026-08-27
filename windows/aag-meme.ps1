@@ -1,24 +1,21 @@
-#Requires -Version 5.1
-<#
-  aag-meme (Windows) -- a background gremlin that blasts a meme sound at a
-  random interval (default: every 20-90 minutes) at max system volume.
-
-    powershell -File aag-meme.ps1 start      # register task + put shims on PATH (runs at logon)
-    powershell -File aag-meme.ps1 stop       # the ONLY off switch (also: `daddy-please-stop`)
-    powershell -File aag-meme.ps1 status     # scheduled? running? + recent log
-    powershell -File aag-meme.ps1 once       # fire the sound right now (test)
-    powershell -File aag-meme.ps1 run        # internal: the foreground loop
-
-  After `start`, these are on your PATH (new terminal):
-    aag-meme status | once | restart
-    daddy-please-stop                        # stop everything, remove shims
-
-  Config via env vars (all optional):
-    AAG_MIN_SECS   min gap between hits   (default 1200 = 20 min)
-    AAG_MAX_SECS   max gap between hits   (default 5400 = 90 min)
-    AAG_VOLUME     master volume 0.0-1.0  (default 1.0 = 100%)
-    AAG_WARMUP     seconds before 1st hit (default 30)
-#>
+# aag-meme (Windows) -- a background gremlin that blasts a meme sound at a
+# random interval (default: every 20-90 minutes) at max system volume.
+#
+#   powershell -File aag-meme.ps1 start      # register task + put shims on PATH (runs at logon)
+#   powershell -File aag-meme.ps1 stop       # the ONLY off switch (also: the daddy-please-stop command)
+#   powershell -File aag-meme.ps1 status     # scheduled? running? + recent log
+#   powershell -File aag-meme.ps1 once       # fire the sound right now (test)
+#   powershell -File aag-meme.ps1 run        # internal: the foreground loop
+#
+# After `start`, these are on your PATH (new terminal):
+#   aag-meme status | once | restart
+#   daddy-please-stop                        # stop everything, remove shims
+#
+# Config via env vars (all optional):
+#   AAG_MIN_SECS   min gap between hits   (default 1200 = 20 min)
+#   AAG_MAX_SECS   max gap between hits   (default 5400 = 90 min)
+#   AAG_VOLUME     master volume 0.0-1.0  (default 1.0 = 100%)
+#   AAG_WARMUP     seconds before 1st hit (default 30)
 
 [CmdletBinding()]
 param([Parameter(Position = 0)][string]$Command = 'status')
@@ -238,38 +235,73 @@ function Stop-LoopProcesses {
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
+function Get-StartupCmd {
+  $dir = [Environment]::GetFolderPath('Startup')
+  Join-Path $dir 'aag-meme.cmd'
+}
+
+function Register-Autostart {
+  # Preferred: a hidden Scheduled Task that runs at every logon.
+  try {
+    $action    = New-TaskAction
+    $trigger   = New-ScheduledTaskTrigger -AtLogOn
+    $me        = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $principal = New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Limited
+    $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+      -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal `
+      -Settings $settings -Description 'aag-meme -- random meme-sound gremlin' -Force -ErrorAction Stop | Out-Null
+    Start-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+    return 'scheduled task'
+  }
+  catch {
+    Log "scheduled task unavailable ($($_.Exception.Message)); using Startup folder instead"
+  }
+  # Fallback: Startup-folder .cmd (runs at logon) + launch the loop right now.
+  $ps1 = Join-Path $Here 'aag-meme.ps1'
+  $body = '@echo off' + "`r`n" +
+  ('start "" /min powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" run' -f $ps1) + "`r`n"
+  Set-Content -LiteralPath (Get-StartupCmd) -Value $body -Encoding ASCII
+  Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden `
+    -ArgumentList @('-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', $ps1, 'run')
+  return 'Startup folder + background process'
+}
+
+function Unregister-Autostart {
+  try { Stop-ScheduledTask       -TaskName $TaskName -ErrorAction SilentlyContinue | Out-Null } catch { }
+  try { Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue } catch { }
+  Remove-Item -LiteralPath (Get-StartupCmd) -Force -ErrorAction SilentlyContinue
+}
+
 function Invoke-Start {
-  $action    = New-TaskAction
-  $trigger   = New-ScheduledTaskTrigger -AtLogOn
-  $me        = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-  $principal = New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Limited
-  $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-    -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
-  Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal `
-    -Settings $settings -Description 'aag-meme -- random meme-sound gremlin' -Force | Out-Null
-  Start-ScheduledTask -TaskName $TaskName
+  $how = Register-Autostart
   Install-Shims
-  Log "registered + started scheduled task '$TaskName' (also runs at every logon)"
+  Log "started via $how (fires every logon + every ${MinSecs}-${MaxSecs}s)"
   Log "off switch: run  daddy-please-stop"
   Invoke-Status
 }
 
 function Invoke-Stop {
-  try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue | Out-Null } catch { }
+  Unregister-Autostart
   Stop-LoopProcesses
-  try { Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue } catch { }
   Remove-Shims
-  Log "stopped -- task unregistered, loop killed, PATH shims removed. quiet now."
+  Log "stopped -- autostart removed, loop killed, PATH shims removed. quiet now."
 }
 
 function Invoke-Status {
-  $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+  $task = $null
+  if (Get-Command Get-ScheduledTask -ErrorAction SilentlyContinue) {
+    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+  }
   if ($task) {
-    $info = Get-ScheduledTaskInfo -TaskName $TaskName
-    Write-Host ("task:     registered (state {0}, last run {1})" -f $task.State, $info.LastRunTime)
+    $info = Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction SilentlyContinue
+    Write-Host ("autostart: scheduled task (state {0}, last run {1})" -f $task.State, $info.LastRunTime)
+  }
+  elseif (Test-Path (Get-StartupCmd)) {
+    Write-Host "autostart: Startup folder ($(Get-StartupCmd))"
   }
   else {
-    Write-Host "task:     not registered"
+    Write-Host "autostart: not installed"
   }
   $running = Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -match 'aag-meme\.ps1.*\brun\b' }

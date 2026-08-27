@@ -9,18 +9,19 @@ no config.
 
 ---
 
-## Install — one command
+## Install
 
-**Linux / macOS / WSL / Git-Bash-on-Windows:**
+**Linux / macOS / WSL / Git-Bash-on-Windows** — one command:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/nimapdevyash/aag-meme/main/get.sh | sh
 ```
 
-**Windows PowerShell:**
+**Windows (PowerShell)** — one command (downloads to a temp file, then runs it —
+avoids `iex` parsing quirks):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -NoProfile -Command "irm https://raw.githubusercontent.com/nimapdevyash/aag-meme/main/install.ps1 | iex"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;$t=Join-Path $env:TEMP 'aag-install.ps1';(New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/nimapdevyash/aag-meme/main/install.ps1',$t);& $t"
 ```
 
 `get.sh` sniffs the OS and does the right thing:
@@ -31,7 +32,7 @@ powershell -ExecutionPolicy Bypass -NoProfile -Command "irm https://raw.githubus
 | Linux without systemd / WSL | a detached `nohup` background loop |
 | macOS | a `LaunchAgent` (`com.aag-meme`, RunAtLoad + KeepAlive) |
 | Git Bash / MSYS / Cygwin | hands off to the PowerShell installer |
-| Windows PowerShell | a hidden Scheduled Task (at logon) |
+| Windows PowerShell | a hidden Scheduled Task at logon (falls back to a Startup-folder entry if task registration is blocked) |
 
 Either way you end up with two commands on your PATH:
 
@@ -49,10 +50,10 @@ daddy-please-stop
 That disables the service / task / agent, kills the loop, and removes the PATH
 shims — on any OS. Until you run it, the gremlin survives reboots.
 
-Windows, without a working shell:
+Windows, from a raw URL (if the PATH command isn't available):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -NoProfile -Command "irm https://raw.githubusercontent.com/nimapdevyash/aag-meme/main/stop.ps1 | iex"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;$t=Join-Path $env:TEMP 'aag-stop.ps1';(New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/nimapdevyash/aag-meme/main/stop.ps1',$t);& $t"
 ```
 
 ---
