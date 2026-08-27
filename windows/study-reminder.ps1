@@ -36,7 +36,8 @@ $MaxSecs = if ($env:STUDY_MAX_SECS) { [int]$env:STUDY_MAX_SECS }    else { 5400 
 $Volume  = if ($env:STUDY_VOLUME)   { [double]$env:STUDY_VOLUME }   else { 1.0 }
 $Warmup  = if ($env:STUDY_WARMUP)   { [int]$env:STUDY_WARMUP }      else { 30 }
 
-New-Item -ItemType Directory -Force -Path $VarDir | Out-Null
+try { New-Item -ItemType Directory -Force -Path $VarDir -ErrorAction Stop | Out-Null }
+catch { $LogFile = Join-Path $env:TEMP 'study-reminder.log' }   # fall back to TEMP for logging
 
 function Log([string]$msg) {
   $line = '{0}  {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $msg
@@ -256,16 +257,34 @@ function Register-Autostart {
     return 'scheduled task'
   }
   catch {
-    Log "scheduled task unavailable ($($_.Exception.Message)); using Startup folder instead"
+    Log "scheduled task unavailable ($($_.Exception.Message)); trying Startup folder"
   }
-  # Fallback: Startup-folder .cmd (runs at logon) + launch the loop right now.
+
   $ps1 = Join-Path $Here 'study-reminder.ps1'
-  $body = '@echo off' + "`r`n" +
-  ('start "" /min powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" run' -f $ps1) + "`r`n"
-  Set-Content -LiteralPath (Get-StartupCmd) -Value $body -Encoding ASCII
-  Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden `
-    -ArgumentList @('-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', $ps1, 'run')
-  return 'Startup folder + background process'
+
+  # Fallback 1: Startup-folder .cmd so it comes back at logon.
+  $persisted = $false
+  try {
+    $body = '@echo off' + "`r`n" +
+    ('start "" /min powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" run' -f $ps1) + "`r`n"
+    Set-Content -LiteralPath (Get-StartupCmd) -Value $body -Encoding ASCII -ErrorAction Stop
+    $persisted = $true
+  }
+  catch {
+    Log "Startup folder blocked ($($_.Exception.Message)) -- this session only, won't survive reboot"
+  }
+
+  # Fallback 2 (always): run the loop now, detached, so it works for this session.
+  try {
+    Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden `
+      -ArgumentList @('-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', $ps1, 'run')
+  }
+  catch {
+    Log "could not spawn the background loop ($($_.Exception.Message))"
+  }
+
+  if ($persisted) { return 'Startup folder + background process' }
+  return 'background process (this session only -- autostart is blocked on this machine)'
 }
 
 function Unregister-Autostart {
@@ -276,7 +295,8 @@ function Unregister-Autostart {
 
 function Invoke-Start {
   $how = Register-Autostart
-  Install-Shims
+  try { Install-Shims }
+  catch { Log "could not install PATH shims ($($_.Exception.Message)) -- use daddy_please_stop.ps1 by full path to stop" }
   Log "started via $how (fires every logon + every ${MinSecs}-${MaxSecs}s)"
   Log "off switch: run  daddy_please_stop"
   Invoke-Status
