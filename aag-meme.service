@@ -1,0 +1,17 @@
+[Unit]
+Description=aag-meme — random meme-sound gremlin
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/Codes/aag-meme/aag-meme.sh run
+Restart=always
+RestartSec=5
+# Tweak the vibe here if you want:
+# Environment=AAG_MIN_SECS=1200
+# Environment=AAG_MAX_SECS=5400
+# Environment=AAG_VOLUME=1.0
+
+[Install]
+WantedBy=default.target
