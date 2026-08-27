@@ -25,9 +25,8 @@ case "$uname_s" in
     say "Windows detected -> PowerShell installer"
     ps="$(command -v powershell.exe || command -v pwsh.exe || command -v powershell || true)"
     [ -n "$ps" ] || { say "powershell not found on PATH"; exit 1; }
-    # download to a temp file and run it -- avoids all `iex`-on-string parsing quirks
     "$ps" -NoProfile -ExecutionPolicy Bypass -Command \
-      '[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $t=Join-Path $env:TEMP "study-install.ps1"; (New-Object Net.WebClient).DownloadFile("'"$RAW"'/install.ps1",$t); & $t'
+      "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; iex ((New-Object Net.WebClient).DownloadString('$RAW/install.ps1'))"
     say "done. off switch:  daddy_please_stop"
     exit 0
     ;;

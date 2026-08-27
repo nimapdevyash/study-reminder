@@ -1,8 +1,8 @@
 # study-reminder -- Windows installer.
 #
-# Recommended one-liner (downloads to a temp file, then runs it -- most robust):
+# One-liner (safe pasted in cmd.exe OR a PowerShell prompt -- no $ variables):
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;$t=Join-Path $env:TEMP 'study-install.ps1';(New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/install.ps1',$t);& $t"
+#   powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/install.ps1'))"
 #
 # It downloads the repo (the ghop ghop clip is bundled), drops it in
 # %LOCALAPPDATA%\study-reminder, registers a hidden scheduled task that fires the clip

@@ -15,7 +15,7 @@ case "$OS" in
       "$ps" -NoProfile -ExecutionPolicy Bypass -File "$HERE/windows/study-reminder.ps1" __teardown
     elif [ -n "$ps" ]; then
       "$ps" -NoProfile -ExecutionPolicy Bypass -Command \
-        '[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $t=Join-Path $env:TEMP "study-stop.ps1"; (New-Object Net.WebClient).DownloadFile("https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/daddy_please_stop.ps1",$t); & $t'
+        "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/daddy_please_stop.ps1'))"
     fi
     ;;
   Darwin)

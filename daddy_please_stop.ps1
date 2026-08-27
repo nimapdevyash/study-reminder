@@ -1,6 +1,6 @@
 # study-reminder off switch for Windows. Runnable straight from a raw URL:
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;$t=Join-Path $env:TEMP 'study-stop.ps1';(New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/daddy_please_stop.ps1',$t);& $t"
+#   powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/daddy_please_stop.ps1'))"
 #
 # (You normally just run the `daddy_please_stop` command instead.)
 

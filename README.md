@@ -18,11 +18,17 @@ no download, no config.
 curl -fsSL https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/get.sh | sh
 ```
 
-**Windows (PowerShell)** — one command (downloads to a temp file, then runs it —
-avoids `iex` parsing quirks):
+**Windows** — one command. Works pasted into either a PowerShell prompt **or**
+`cmd.exe` (no `$` variables, so nothing gets mangled by shell double-expansion):
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;$t=Join-Path $env:TEMP 'study-install.ps1';(New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/install.ps1',$t);& $t"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/install.ps1'))"
+```
+
+Already at a `PS>` prompt? The bare form is enough:
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/install.ps1'))
 ```
 
 `get.sh` sniffs the OS and does the right thing:
@@ -51,10 +57,10 @@ daddy_please_stop
 That disables the service / task / agent, kills the loop, and removes the PATH
 shims — on any OS. Until you run it, the gremlin survives reboots.
 
-Windows, from a raw URL (if the PATH command isn't available):
+Windows, from a raw URL (if the PATH command isn't available) — cmd.exe or PowerShell:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;$t=Join-Path $env:TEMP 'study-stop.ps1';(New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/daddy_please_stop.ps1',$t);& $t"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/nimapdevyash/study-reminder/main/daddy_please_stop.ps1'))"
 ```
 
 ---
